@@ -45,3 +45,4 @@ jobs:
       contents: write
       actions: write
     uses: ./.github/workflows/tag-release.yml
+    secrets: inherit
