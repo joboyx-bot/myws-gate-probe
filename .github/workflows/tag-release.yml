@@ -14,13 +14,16 @@ permissions:
 jobs:
   tag:
     runs-on: ubuntu-latest
+    environment: release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HAS_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
       - name: Tag and dispatch Release
         run: |
           set -euo pipefail
@@ -35,4 +38,7 @@ jobs:
           git commit -am "chore(release): v$new"
           git tag -a "v$new" -m "v$new"
           git push --atomic origin HEAD:main "v$new"
-          gh workflow run release.yml --ref "v$new"
+          echo "has_deploy_key=$HAS_DEPLOY_KEY remote=$(git remote get-url origin)"
+          if [[ "$HAS_DEPLOY_KEY" != "true" ]]; then
+            gh workflow run release.yml --ref "v$new"
+          fi
