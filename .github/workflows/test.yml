@@ -1,0 +1,47 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: if [ -f FAIL_LINT ]; then exit 1; fi
+
+  cargo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sleep 25
+
+  release-gate:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, cargo]
+    runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.head.outputs.current }}
+    steps:
+      - id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)
+          if [[ "$head" == "$GITHUB_SHA" ]]; then
+            echo "current=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip: main moved from $GITHUB_SHA to $head"
+            echo "current=false" >>"$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: release-gate
+    if: needs.release-gate.outputs.current == 'true'
+    permissions:
+      contents: write
+      actions: write
+    uses: ./.github/workflows/tag-release.yml

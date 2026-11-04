@@ -1,0 +1,38 @@
+name: tag-release
+
+on:
+  workflow_call:
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Tag and dispatch Release
+        run: |
+          set -euo pipefail
+          echo "event=$GITHUB_EVENT_NAME sha=$GITHUB_SHA head=$(git rev-parse HEAD)"
+          msg=$(git log -1 --pretty=%s)
+          if [[ "$msg" == "chore(release):"* ]]; then echo skip; exit 0; fi
+          v=$(cat VERSION)
+          IFS=. read -r a b c <<<"$v"; new="$a.$b.$((c + 1))"
+          echo "$new" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v$new"
+          git tag -a "v$new" -m "v$new"
+          git push --atomic origin HEAD:main "v$new"
+          gh workflow run release.yml --ref "v$new"
